@@ -4,10 +4,10 @@ python package manager - command line interface
 This script helps in managing the python dependecies in a single file. No need for maintaining dependecies across
 multiple files per environment
 
-below json structure depicts the dependecies per environment
+below json structure depicts the dependecies for all the environment.
 
 <pre><code>
-{{
+{
   "dependencies": {
     "common": {
       "django": "1.10",
@@ -27,11 +27,12 @@ below json structure depicts the dependecies per environment
 }
 </code></pre>
 
-where * denotes the latest stable version available
+Note :
+1. common denotes dependecies needed across all the environment
+2. where * denotes the latest stable version available
 
-Note: project's virtualenv should be active while running the script
-
-add package.json to the root directory of the project and run packages script with one of the below actions
+add package.json to the root directory of the project and run packages script with one of the below actions.
+project's virtualenv should be active while running the script
 
 1. commands
 2. unpack
