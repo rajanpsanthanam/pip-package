@@ -4,13 +4,15 @@ from __future__ import print_function
 import argparse
 import json
 import subprocess
+import urllib.request
 
 COMMON_ENV = 'common'
 
 actions = [
 ('commands', 'list the available commands'),
 ('unpack', 'unpack the dependencies and install them'),
-('difference', 'list the packages not installed but mentioned')
+('difference', 'list the packages not installed but mentioned'),
+('check', 'check for the latest version availability of installed packages')
 ]
 
 parser = argparse.ArgumentParser()
@@ -26,58 +28,74 @@ parser.add_argument(
     help='environment in which to perform the action'
 )
 
+def read_config():
+    fh = open('package.json')
+    package_data = fh.read()
+    data = json.loads(package_data)
+    return data
+
+def check():
+    p = subprocess.Popen(['pip', 'freeze'], stdout=subprocess.PIPE, universal_newlines=True)
+    stdout, stderr = p.communicate()
+    if stdout:
+        installed = stdout.split('\n')  # installed requirements
+        for item in filter(None, installed):
+            package, version = item.split('==')
+            url = 'https://pypi.python.org/pypi/{0}/json'.format(package)
+            r = urllib.request.urlopen(url)
+            data = json.loads(r.read().decode(r.info().get_param('charset') or 'utf-8'))
+            latest_version = data.get('info').get('version')
+            if version != latest_version:
+                print('{0} {1} --> {2}'.format(package, version, latest_version))
+
 def commands():
     print('\ncommands available to perform:\n')
     for action, description in actions:
         print(action, '----', description)
 
 def difference(environment):
-    with open('package.json') as file:
-        package_data = file.read()
-        data = json.loads(package_data)
-        dependencies = data.get('dependencies')
-        if dependencies and dependencies.get(environment):
-            common_packages = dependencies.get(COMMON_ENV)
-            packages = dependencies.get(environment)
-            packages.update(common_packages)
-            listed = set([item.lower() for item in packages.keys()]) # listed requirements
-            p = subprocess.Popen(['pip', 'freeze'], stdout=subprocess.PIPE, universal_newlines=True)
-            stdout, stderr = p.communicate()
-            if stdout:
-                installed_ = stdout.split('\n')  # installed requirements
-                installed = set([item.split('==')[0].lower() for item in installed_])
-                differences = listed-installed
-                if differences:
-                    print('\npackages yet to be installed:\n')
-                    for package in differences:
-                        print(package)
-                    print('\nrun unpack command to install the missed dependencies\n')
-                else:
-                    print('\nupdate to date. come back later\n')
-
+    data = read_config()
+    dependencies = data.get('dependencies')
+    if dependencies and dependencies.get(environment):
+        common_packages = dependencies.get(COMMON_ENV)
+        packages = dependencies.get(environment)
+        packages.update(common_packages)
+        listed = set([item.lower() for item in packages.keys()]) # listed requirements
+        p = subprocess.Popen(['pip', 'freeze'], stdout=subprocess.PIPE, universal_newlines=True)
+        stdout, stderr = p.communicate()
+        if stdout:
+            installed_ = stdout.split('\n')  # installed requirements
+            installed = set([item.split('==')[0].lower() for item in installed_])
+            differences = listed-installed
+            if differences:
+                print('\npackages yet to be installed:\n')
+                for package in differences:
+                    print(package)
+                print('\nrun unpack command to install the missed dependencies\n')
             else:
-                print('pip freeze command failed')
+                print('\nupdate to date. come back later\n')
 
         else:
-            print('dependencies not specified')
+            print('pip freeze command failed')
+
+    else:
+        print('dependencies not specified')
 
 
 def unpack(environment):
-    with open('package.json') as file:
-        package_data = file.read()
-        data = json.loads(package_data)
-        dependencies = data.get('dependencies')
-        if dependencies and dependencies.get(environment):
-            common_packages = dependencies.get(COMMON_ENV)
-            packages = dependencies.get(environment)
-            packages.update(common_packages)
-            for key, value in packages.items():
-                if not value == '*':
-                    subprocess.call(["pip", "install", '{0}=={1}'.format(key, value)])
-                else:
-                    subprocess.call(["pip", "install", key])
-        else:
-            print('dependencies not specified')
+    data = read_config()
+    dependencies = data.get('dependencies')
+    if dependencies and dependencies.get(environment):
+        common_packages = dependencies.get(COMMON_ENV)
+        packages = dependencies.get(environment)
+        packages.update(common_packages)
+        for key, value in packages.items():
+            if not value == '*':
+                subprocess.call(["pip", "install", '{0}=={1}'.format(key, value)])
+            else:
+                subprocess.call(["pip", "install", key])
+    else:
+        print('dependencies not specified')
 
 
 if __name__ == '__main__':
@@ -90,6 +108,8 @@ if __name__ == '__main__':
         unpack(environment)
     elif action == 'difference':
         difference(environment)
+    elif action == 'check':
+        check()
     else:
         print('\ncommand not found\n')
         commands()

@@ -37,3 +37,4 @@ project's virtualenv should be active while running the script
 1. commands
 2. unpack
 3. difference
+4. check
