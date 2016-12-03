@@ -7,6 +7,8 @@ import subprocess
 import urllib.request
 
 COMMON_ENV = 'common'
+PIP_FREEZE_FAILURE = 'pip freeze command failed'
+DEPENDENCIES_NOT_SPECIFIED = 'dependencies not specified'
 
 actions = [
 ('commands', 'list the available commands'),
@@ -34,12 +36,18 @@ def read_config():
     data = json.loads(package_data)
     return data
 
-def check():
+def _get_pip_freeze():
     p = subprocess.Popen(['pip', 'freeze'], stdout=subprocess.PIPE, universal_newlines=True)
     stdout, stderr = p.communicate()
     if stdout:
         installed = stdout.split('\n')  # installed requirements
-        for item in filter(None, installed):
+        return filter(None, installed)
+    return None
+
+def check():
+    installed_packages = _get_pip_freeze()
+    if installed_packages:
+        for item in installed_packages:
             package, version = item.split('==')
             url = 'https://pypi.python.org/pypi/{0}/json'.format(package)
             r = urllib.request.urlopen(url)
@@ -47,6 +55,8 @@ def check():
             latest_version = data.get('info').get('version')
             if version != latest_version:
                 print('{0} {1} --> {2}'.format(package, version, latest_version))
+    else:
+        print(PIP_FREEZE_FAILURE)
 
 def commands():
     print('\ncommands available to perform:\n')
@@ -61,11 +71,9 @@ def difference(environment):
         packages = dependencies.get(environment)
         packages.update(common_packages)
         listed = set([item.lower() for item in packages.keys()]) # listed requirements
-        p = subprocess.Popen(['pip', 'freeze'], stdout=subprocess.PIPE, universal_newlines=True)
-        stdout, stderr = p.communicate()
-        if stdout:
-            installed_ = stdout.split('\n')  # installed requirements
-            installed = set([item.split('==')[0].lower() for item in installed_])
+        installed_packages = _get_pip_freeze()
+        if installed_packages:
+            installed = set([item.split('==')[0].lower() for item in installed_packages])
             differences = listed-installed
             if differences:
                 print('\npackages yet to be installed:\n')
@@ -76,10 +84,10 @@ def difference(environment):
                 print('\nupdate to date. come back later\n')
 
         else:
-            print('pip freeze command failed')
+            print(PIP_FREEZE_FAILURE)
 
     else:
-        print('dependencies not specified')
+        print(DEPENDENCIES_NOT_SPECIFIED)
 
 
 def unpack(environment):
@@ -95,7 +103,7 @@ def unpack(environment):
             else:
                 subprocess.call(["pip", "install", key])
     else:
-        print('dependencies not specified')
+        print(DEPENDENCIES_NOT_SPECIFIED)
 
 
 if __name__ == '__main__':
